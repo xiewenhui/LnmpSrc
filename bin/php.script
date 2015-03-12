@@ -1,0 +1,15 @@
+#!/bin/sh
+
+. "`dirname \"${0}\"`/common.inc" || exit 1
+cd "${LNMP_ROOT}" || exit 1
+
+PHPRC="${LNMP_ROOT}/etc/php.ini"
+export PHPRC
+
+PHP_INI_SCAN_DIR="${LNMP_ROOT}/etc/php.d"
+export PHP_INI_SCAN_DIR
+
+LD_LIBRARY_PATH="${LNMP_ROOT}/lib/php/extensions/no-debug-non-zts-20100525:${LNMP_ROOT}/lib:${LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH
+
+exec "php-cli" "$@"

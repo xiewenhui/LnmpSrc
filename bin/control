@@ -1,0 +1,60 @@
+#!/bin/sh
+
+. "`dirname \"${0}\"`/common.inc" || exit 1
+cd "${LNMP_ROOT}" || exit 1
+
+PHPFPM_CONTROL=bin/phpfpm_control
+NGINX_CONTROL=bin/nginx_control
+
+LOGROTATE_BIN=bin/logrotate
+LOGROTATE_STATUS=run/rotate.status
+LOGROTATE_CONF=etc/logrotate.conf
+
+lnmp_help(){
+    echo "${0} <start|stop|restart|reload>"
+    exit 1
+}
+
+lnmp_start(){
+    ${PHPFPM_CONTROL} start && ${NGINX_CONTROL} start
+    return $?
+}
+
+lnmp_stop(){
+    ${PHPFPM_CONTROL} stop && ${NGINX_CONTROL} stop
+    return $?
+}
+
+lnmp_restart(){
+    lnmp_stop && lnmp_start
+    return $?
+}
+
+lnmp_reload(){
+    ${NGINX_CONTROL} reload && ${PHPFPM_CONTROL} reload
+    return $?
+}
+
+lnmp_rotate(){
+    ${LOGROTATE_BIN} ${LOGROTATE_CONF} -s ${LOGROTATE_STATUS} && \
+        sh bin/clean_log.sh clean
+    return $?
+}
+
+case "${1}" in
+    start|stop|restart|reload|rotate)
+        "lnmp_${1}"
+        ;;
+    *)
+        lnmp_help
+        ;;
+esac
+
+if [ $? -ne 0 ]; then
+    echo "[FAIL] ${1}" 1>&2
+    exit 1
+fi
+
+echo "[OK] all ${1}"
+exit 0
+

@@ -1,0 +1,73 @@
+#!/bin/sh
+
+NGINX_ROOT=`dirname "${0}"`/..
+cd "${NGINX_ROOT}" || exit 1
+NGINX_ROOT=`pwd`
+
+NGINX_PIDFILE=run/nginx.pid
+NGINX_PROC_NAME=nginx
+NGINX_CONF=etc/nginx.conf
+NGINX="${NGINX_ROOT}/sbin/nginx -p . -c ${NGINX_CONF}"
+
+
+nginx_help(){
+    echo "${0} <start|stop|restart|reload>"
+    exit 1
+}
+
+nginx_checkhealth(){
+    [ -e "${NGINX_PIDFILE}" ] || return 1
+    PID=`cat "${NGINX_PIDFILE}" 2>/dev/null`
+    [ $? = 0 ] || return 1
+    ps --pid ${PID} |grep ${NGINX_PROC_NAME} &>/dev/null || return 1
+    return 0
+}
+
+nginx_start(){
+    nginx_checkhealth
+    if [ $? = 0 ]; then
+        echo "[WARN] nginx is already running!" 1>&2
+        return 0
+    fi
+    ./bin/gen_whitelist
+    ${NGINX}
+    return $?
+}
+
+nginx_stop(){
+    nginx_checkhealth
+    if [ $? != 0 ]; then
+        echo "[WARN] nginx is not running!" 1>&2
+        return 0
+    fi
+    ${NGINX} -s stop
+    return $?
+}
+
+nginx_restart(){
+    nginx_stop && nginx_start
+    return $?
+}
+
+nginx_reload(){
+    ${NGINX} -s reload
+    return $?
+}
+
+case "${1}" in
+    start|stop|restart|reload)
+        "nginx_${1}"
+        ;;
+    *)
+        nginx_help
+        ;;
+esac
+
+if [ $? -ne 0 ]; then
+    echo "[FAIL] nginx ${1}" 1>&2
+    exit 1
+fi
+
+echo "[OK] nginx ${1}"
+exit 0
+

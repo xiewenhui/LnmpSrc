@@ -1,0 +1,132 @@
+#!/bin/sh
+
+PHPFPM_ROOT=`dirname "${0}"`/..
+cd "${PHPFPM_ROOT}" || exit 1
+PHPFPM_ROOT=`pwd`
+
+PHPFPM_CONF=${PHPFPM_ROOT}/etc/php-fpm.conf
+PHPINI_CONF=etc/php.ini
+PHPFPM_PID=run/php-fpm.pid
+EXTENSION_DIR=lib/php/extensions/no-debug-non-zts-20100525
+PHPFPM_PROC_NAME=php-fpm
+PHP_CONF_DIR=etc/php.d
+PHPFPM="./sbin/php-fpm -p . -c ${PHPINI_CONF} -y ${PHPFPM_CONF} -D -g ${PHPFPM_PID}"
+
+link_so(){
+    for i in `ldd sbin/php-fpm |fgrep -i 'not found' |awk '{print $1}' |sort -u`; do
+        SO_FILE=`basename $i`
+        SO_PREFIX=`echo ${SO_FILE} | sed 's/[1-9\.]*\.so.*//g'`
+        SO_LOCAL=`find /lib64 /usr/lib64 /usr/local/lib64  -name "${SO_PREFIX}*\.so*" 2>/dev/null |head -n1`
+        if [ "${SO_LOCAL}" != "" ]; then
+            ln -sf ${SO_LOCAL} lib/${SO_FILE}
+        fi
+    done
+}
+
+init_extension_conf(){
+    PHP_CONF_DIR=etc/php.d
+    export PHP_INI_SCAN_DIR="${PHPFPM_ROOT}/etc/php.d"
+    [ -e "${PHP_CONF_DIR}" ] || mkdir -p "${PHP_CONF_DIR}"
+    EXTENSION_CONF=${PHP_CONF_DIR}/extension_dir.ini
+    EXTENSION_LIB=`readlink -f "${EXTENSION_DIR}"`
+    EXTENSION_CONF_CONTENTS="extension_dir=\"${EXTENSION_LIB}\""
+
+    INCLUDE_CONF=${PHP_CONF_DIR}/include_dir.ini
+    INCLUDE_PATH=.:${PHPFPM_ROOT}/weblib/phplib:${PHPFPM_ROOT}/lib/php
+    INCLUDE_CONTENTS="include_path=${INCLUDE_PATH}"
+    echo "${INCLUDE_CONTENTS}" >${INCLUDE_CONF}
+
+    CONF_MD5=`md5sum "${EXTENSION_CONF}" 2>/dev/null |awk '{print $1}'`
+    STR_MD5=`echo "${EXTENSION_CONF_CONTENTS}" |md5sum |awk '{print $1}'`
+
+    [ "${CONF_MD5}" = "${STR_MD5}" ] || echo "${EXTENSION_CONF_CONTENTS}" >${EXTENSION_CONF}
+}
+
+phpfpm_checkhealth(){
+    [ -e "${PHPFPM_PID}" ] || return 1
+    PID=`cat "${PHPFPM_PID}" 2>/dev/null`
+    [ $? = 0 ] || return 1
+    ps --pid ${PID} |grep ${PHPFPM_PROC_NAME} &>/dev/null || return 1
+    return 0
+}
+
+phpfpm_help(){
+    echo "${0} <start|stop|restart|reload>"
+    exit 1
+}
+
+phpfpm_start(){
+    local ret=0
+    phpfpm_checkhealth
+    if [ $? = 0 ]; then
+        echo "[WARN] php-fpm is aleady running!"
+        return 0
+    fi
+    link_so
+    init_extension_conf
+    ${PHPFPM}
+    ret=$?
+    chmod o+r log/*
+    return $ret
+}
+
+phpfpm_reload(){
+    phpfpm_checkhealth
+    if [ $? != 0 ]; then
+        echo "[FAIL] php-fpm is not running!"
+        return 1
+    fi
+    PID=`cat "${PHPFPM_PID}"`
+    kill -USR1 "${PID}"
+    return $?
+}
+
+phpfpm_stop(){
+    phpfpm_checkhealth
+    if [ $? != 0 ]; then
+        echo "[WARN] php-fpm is not running!"
+        return 0
+    fi
+    kill "${PID}"
+    if [ $? != 0 ]; then
+        echo "[FAIL] kill ${PID} failed"
+        return $?
+    fi
+    sleep 0.1
+
+    phpfpm_checkhealth
+    if [ $? = 0 ]; then
+        echo "[WARN] php-fpm is still running, kill -9 php-fpm"
+        kill -9 "${PID}"
+        sleep 1
+        phpfpm_checkhealth
+        if [ $? = 0 ]; then
+            echo "[FAIL] kill -9 php-fpm failed"
+            return 1
+        fi
+    fi
+    return 0
+}
+
+phpfpm_restart(){
+    phpfpm_stop && phpfpm_start
+    return $?
+}
+
+case "${1}" in
+    start|stop|restart|reload)
+        "phpfpm_${1}"
+        ;;
+    *)
+        phpfpm_help
+        ;;
+esac
+
+if [ $? -ne 0 ]; then
+    echo "[FAIL] php-fpm ${1}" 1>&2
+    exit 1
+fi
+
+echo "[OK] php-fpm ${1}"
+exit 0
+

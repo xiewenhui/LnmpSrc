@@ -1,0 +1,15 @@
+#!/bin/sh
+cd `dirname "$0"`
+WHITELIST_CONF=../etc/whitelist.conf
+LIMIT_CONF=../etc/limit.conf
+
+echo 'geo $limited {' >${LIMIT_CONF}
+printf '%16s    1;\n' default >>${LIMIT_CONF}
+
+for service in `sed 's/[\s]*#.*$//g' "${WHITELIST_CONF}"`; do
+    for i in `suquery -i $service |awk '{print $2}' |sort -u`; do
+        printf '%16s    0;\n' $i >>${LIMIT_CONF}
+    done
+done
+
+echo '}' >>${LIMIT_CONF}

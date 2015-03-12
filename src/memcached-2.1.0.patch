@@ -1,0 +1,13 @@
+--- a/php_memcached.c	2013-01-05 21:27:56.000000000 +0800
++++ b/php_memcached.c	2013-01-05 22:03:51.000000000 +0800
+@@ -617,6 +617,10 @@
+ 		zend_bool return_value_set = 0;
+ 
+ 		status = memcached_mget_by_key(m_obj->memc, server_key, server_key_len, keys, key_lens, 1);
++		if (php_memc_handle_error(i_obj, status TSRMLS_CC) < 0) {
++			RETURN_FROM_GET;
++		}
++
+ 		payload = memcached_fetch(m_obj->memc, NULL, NULL, &payload_len, &flags, &status);
+ 
+ 		/* This is for historical reasons */

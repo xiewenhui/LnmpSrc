@@ -1,0 +1,10 @@
+--- a/libmemcached-1.0/memcached.h	2012-12-26 15:06:35.000000000 +0800
++++ b/libmemcached-1.0/memcached.h	2012-12-26 15:06:43.000000000 +0800
+@@ -43,7 +43,6 @@
+ #endif
+ 
+ #ifdef __cplusplus
+-#  include <tr1/cinttypes>
+ #  include <cstddef>
+ #  include <cstdlib>
+ #else
